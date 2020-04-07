@@ -8,6 +8,7 @@
 #include <vector>
 #include "thread"
 #include "string"
+#include <mutex>
 
 //using std::chrono::duration_cast;
 //using std::chrono::milliseconds;
@@ -20,17 +21,20 @@ using std::cerr;
 using std::string;
 using std::ifstream;
 using std::vector;
+using std::mutex;
+using std::condition_variable;
+using std::unique_lock;
 
 //global variables
+//mutex
+mutex KMP_mutex;
+mutex BM_mutex;
+condition_variable KMP_cv;
+condition_variable BM_cv;
+
 //holds the difference in start and end times
 int64_t K_ms = 0;
 int64_t BM_ms = 0;
-
-int64_t K_ms2 = 0;
-int64_t BM_ms2 = 0;
-
-int64_t K_ms3 = 0;
-int64_t BM_ms3 = 0;
 
 //holds the text in the logfiles
 string text1;
@@ -196,129 +200,10 @@ vector<int> FindString(string text, string pat)
 	return output;
 }
 
-//run first logfile
-void Run1()
-{	
-	string pat = "Alby";//pattern to look for
-	//cout << "logfile 1 " << endl;
-	//cout << "Number of times pattern was found: " << endl;
-
-	// Start timing for KMP
-	auto K_begin1 = std::chrono::steady_clock::now();
-	vector<int> KMP_pos1 = FindString(text1, pat);//Call KMP function
-
-	int i = 0;//number of times
-	for (auto k : KMP_pos1)
-	{
-		i++;
-	}
-	//cout << "KMP -  " << i << endl;
-
-	auto K_end1 = std::chrono::steady_clock::now();
-	auto K_ms1 = std::chrono::duration_cast<std::chrono::milliseconds>(K_end1 - K_begin1).count();//compute difference
-	//cout << "KMP time 1: "<< K_ms1 << endl;
-	//end timing of KMP 
-
-	//Start timing for BM
-	auto BM_begin1 = std::chrono::steady_clock::now();
-	vector<int> BM_pos1 = find_bm_multi(text1, pat);//call bm function
-
-	int j = 0;//number of times
-	for (auto b : BM_pos1)
-	{
-		j++;
-	}
-	//out << "boyer moore -  " << j << endl;
-
-	auto BM_end1 = std::chrono::steady_clock::now();
-	auto BM_ms1 = std::chrono::duration_cast<std::chrono::milliseconds>(K_end1 - K_begin1).count();//compute difference
-	//cout << "BM time 1: " << BM_ms1 << endl;
-	//end timing for BM
-}
-
-//run second logfile
-void Run2()
-{
-	//cout << "logfile 2" << endl;
-	//cout << "Number of times pattern was found: " << endl;
-	string pat2 = "Jeffery";//pattern to look for
-
-	// Start timing for KMP 
-	auto K_begin2 = std::chrono::steady_clock::now();
-	vector<int> KMP_pos2 = FindString(text2, pat2);//Call KMP function
-	int i = 0;//number of times pattern occurs in text
-
-	for (auto k : KMP_pos2)
-	{
-		i++;
-	}
-	//cout << "KMP - " << i << endl;
-
-	auto K_end2 = std::chrono::steady_clock::now();
-	K_ms2 = std::chrono::duration_cast<std::chrono::milliseconds>(K_end2 - K_begin2).count();//compute difference
-	//cout << K_ms2 << endl;
-	//stop timing of KMP
-
-	//start timing for BM
-	auto BM_begin2 = std::chrono::steady_clock::now();
-	vector<int> BM_pos2 = find_bm_multi(text2, pat2);//call bm function
-
-	int j = 0;//number of times pattern occurs in text
-	for (auto b : BM_pos2)
-	{
-		j++;
-	}
-	//cout << "boyer moore - " << j << endl;
-
-	auto BM_end2 = std::chrono::steady_clock::now();
-	BM_ms2 = std::chrono::duration_cast<std::chrono::milliseconds>(K_end2 - K_begin2).count();//compute difference
-	//cout << BM_ms2 << endl;
-	//end timing of BM
-}
-
-//run thrid logfile
-void Run3()
-{
-	//cout << "logfile 3" << endl;
-	//cout << "Number of times pattern was found: " << endl;
-	string pat3 = "Alexandre";//pattern to look for
-
-	// Start timing for KMP
-	auto K_begin3 = std::chrono::steady_clock::now();
-	vector<int> KMP_pos3 = FindString(text3, pat3);//Call KMP function
-	int i = 0;//number of times pattern occurs in text
-
-	for (auto k : KMP_pos3)
-	{
-		i++;
-	}
-	//cout << "KMP -  " << i << endl;
-
-	auto K_end3 = std::chrono::steady_clock::now();
-	K_ms3 = std::chrono::duration_cast<std::chrono::milliseconds>(K_end3 - K_begin3).count();//computer difference
-	//cout << K_ms3 << endl;
-	//stop timing of KMP
-
-	//start timing for BM
-	auto BM_begin3 = std::chrono::steady_clock::now();
-	vector<int> BM_pos3 = find_bm_multi(text3, pat3);//call bm function
-
-	int j = 0;//number of times pattern occurs in text
-	for (auto b : BM_pos3)
-	{
-		j++;
-	}
-	//cout << "boyer moore - " << j << endl;
-
-	auto BM_end3 = std::chrono::steady_clock::now();
-	BM_ms3 = std::chrono::duration_cast<std::chrono::milliseconds>(K_end3 - K_begin3).count();//compute difference
-	//cout << BM_ms3 << endl;
-	//end timing of BM
-}
-
 //Run KMP search algorithm
 void RunKMP(string pat)
 {
+	KMP_mutex.lock();
 	// Start timing for KMP
 	auto K_begin = std::chrono::steady_clock::now();
 
@@ -335,11 +220,12 @@ void RunKMP(string pat)
 	K_ms = std::chrono::duration_cast<std::chrono::milliseconds>(K_end - K_begin).count();//compute difference
 	//cout << "KMP time 1: "<< K_ms << endl;
 	//end timing of KMP 
-
+	KMP_mutex.unlock();
 }
 
 void RunBM(string pat)
 {
+	BM_mutex.lock();
 	//Start timing for BM
 	auto BM_begin = std::chrono::steady_clock::now();
 	vector<int> BM_pos = find_bm_multi(text1, pat);//call BM search function
@@ -355,7 +241,7 @@ void RunBM(string pat)
 	BM_ms = std::chrono::duration_cast<std::chrono::milliseconds>(BM_end - BM_begin).count();//compute difference
 	//cout << "BM time 1: " << BM_ms << endl;
 	//end timing for BM
-
+	BM_mutex.unlock();
 }
 
 int main()
@@ -380,130 +266,120 @@ int main()
 	//name to look for
 	string pat;
 
-	//load file one
+	//load files
 	//load_file("Logfile1.txt", text1);
 
 	thread load_file_thread1(load_file, "Logfile1.txt", std::ref(text1));
 	load_file_thread1.join();
 	
+	//load_file("Logfile2.txt", text2);
+
+	thread load_file_thread2(load_file, "Logfile2.txt", std::ref(text2));
+	load_file_thread2.join();
+
+	//load_file("Logfile3.txt", text3);
+
+	thread load_file_thread3(load_file, "Logfile3.txt", std::ref(text3));
+	load_file_thread3.join();
+
 	thread *KMP_thread1[numoftimes];
 	thread* BM_thread1[numoftimes];
 
-	// Start timing text 1
+	thread* KMP_thread2[numoftimes];
+	thread* BM_threads2[numoftimes];
+
+	thread* KMP_thread3[numoftimes];
+	thread* BM_thread3[numoftimes];
+	
 	for (int i = 0; i < numoftimes; i++)
 	{
+		//start of text 1
 		pat = "alby";
 
-		//run KMP algorithm
+		//run KMP 
 		KMP_thread1[i] = new thread(RunKMP, pat);
 		KMP_thread1[i]->join();
 		delete KMP_thread1[i];
 
 		//RunKMP(pat);
 
-		//run BM algorithm
+		//run BM 
 		BM_thread1[i] = new thread(RunBM, pat);
 		BM_thread1[i]->join();
 		delete BM_thread1[i];
 		
 		//RunBM(pat);
-
+		
 		kmp1_times += K_ms;
-		bm1_times += BM_ms;	
-		//cout << "each time KMP: " << K_ms1 << endl;
-		//cout << "each time BM: " << BM_ms1 << endl;
-	}
-	
-	//compute the average
-	auto avkmp1_time = kmp1_times / numoftimes;
-	auto avbm1_time = bm1_times / numoftimes;
-	
-	cout << endl;
-	cout << "Average KMP time 1: " << avkmp1_time << endl;
-	cout << "Average BM time 1: " << avbm1_time << endl;
-	//end timing of text 1
+		bm1_times += BM_ms;
+		//end of text 1
 
-/////////////////////////////
-
-	//load file two
-	//load_file("Logfile2.txt", text2);
-
-	thread load_file_thread2(load_file, "Logfile2.txt", std::ref(text2));
-	load_file_thread2.join();
-
-	thread* KMP_thread2[numoftimes];
-	thread* BM_threads2[numoftimes];
-
-	//start timing of text 2
-	for (int i = 0; i < numoftimes; i++)
-	{
+		//start of text 2
 		pat = "Jeffery";
 
+		//Run KMP
 		KMP_thread2[i] = new thread(RunKMP, pat);
 		KMP_thread2[i]->join();
 		delete KMP_thread2[i];
 
 		//RunKMP(pat);
 
+		//run BM 
 		BM_threads2[i] = new thread(RunBM, pat);
 		BM_threads2[i]->join();
 		delete BM_threads2[i];
 
-		//RunBM(pat);
+		//RunBM(pat);	
 
 		kmp2_times += K_ms;
 		bm2_times += BM_ms;
+		//end of text 2
+
+		//start of text 3
+		pat = "Alexandre";
+
+		//run KMP
+		KMP_thread3[i] = new thread(RunKMP, pat);
+		KMP_thread3[i]->join();
+		delete KMP_thread3[i];
+
+		//RunKMP(pat);	
+
+		//run BM
+		BM_thread3[i] = new thread(RunBM, pat);
+		BM_thread3[i]->join();
+		delete BM_thread3[i];
+
+		//RunBM(pat);		
+
+		kmp3_times += K_ms;
+		bm3_times += BM_ms;
+		//end of text 3
 	}
-	//compute the average
+	
+	//compute the average for text 1
+	auto avkmp1_time = kmp1_times / numoftimes;
+	auto avbm1_time = bm1_times / numoftimes;
+	
+	cout << endl;
+	cout << "Average KMP time 1: " << avkmp1_time << endl;
+	cout << "Average BM time 1: " << avbm1_time << endl;
+	
+	//compute the average for text 2
 	auto avkmp2_time = kmp2_times / numoftimes;
 	auto avbm2_time = bm2_times / numoftimes;
 
 	cout << endl;
 	cout << "Average KMP time 2: " << avkmp2_time << endl;
 	cout << "Average BM time 2: " << avbm2_time << endl;
-	//end timing of text 2
 
-//////////////////////////////////
-
-	//load file three
-	//load_file("Logfile3.txt", text3);
-
-	thread load_file_thread3(load_file, "Logfile3.txt", std::ref(text3));
-	load_file_thread3.join();
-
-	thread* KMP_thread3[numoftimes];
-	thread* BM_thread3[numoftimes];
-
-	//start timing text 3
-	for (int i = 0; i < numoftimes; i++)
-	{
-		pat = "Alexandre";
-
-		KMP_thread3[i] = new thread(RunKMP,pat);
-		KMP_thread3[i]->join();
-		delete KMP_thread3[i];
-
-		//RunKMP(pat);
-
-		BM_thread3[i] = new thread(RunBM, pat);
-		BM_thread3[i]->join();
-		delete BM_thread3[i];
-
-		//RunBM(pat);
-
-		kmp3_times += K_ms;
-		bm3_times += BM_ms;
-	}
-	//compute the average
+	//compute the average for text 3
 	auto avkmp3_time = kmp3_times / numoftimes;
 	auto avbm3_time = bm3_times / numoftimes;
 
 	cout << endl;
 	cout << "Average KMP time 3: " << avkmp3_time << endl;
-	cout << "Average BM time 3: " << avbm3_time << endl;
-	//end timing text 3
-
-/////////////////////////////////		
+	cout << "Average BM time 3: " << avbm3_time << endl;	
 
 	//write to excel
 	/*ofstream my_file("Coursework.csv");
