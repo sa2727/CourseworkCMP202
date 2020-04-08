@@ -1,3 +1,8 @@
+//number of names in text
+//text 1: 192
+//text 2: 36
+//text 3: 31
+
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -235,7 +240,7 @@ void RunBM(string pat)
 	{
 		j++;
 	}
-	//out << "boyer moore -  " << j << endl;
+	//cout << "boyer moore -  " << j << endl;
 
 	auto BM_end = std::chrono::steady_clock::now();
 	BM_ms = std::chrono::duration_cast<std::chrono::milliseconds>(BM_end - BM_begin).count();//compute difference
