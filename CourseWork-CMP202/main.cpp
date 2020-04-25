@@ -37,12 +37,9 @@ int sizeofText3 = 524322;
 mutex kmp_mutex;
 
 //mutex for pattern
-mutex pat_mutex;
-condition_variable pat_cond;
-int patready = 0;
-
-//holds the difference in start and end times
-//int64_t K_ms = 0;
+mutex jumble_mutex;
+condition_variable jumble_cond;
+int jumbleready = 0;
 
 //number of searches in each logfile
 const int numoftimes = 100;
@@ -102,7 +99,7 @@ void load_file(const string& filename, string& str) {
 	//die thread
 	thread die_thread(die, "Unable to find " + filename);
 	die_thread.join();
-	die("Unable to find " + filename);
+	//die("Unable to find " + filename);
 
 }
 
@@ -181,16 +178,19 @@ vector<int> FindString(string text, string pat)
 //times
 void Times_one(int64_t K_ms)
 {
+	//with threads
 	kmp_maxtimes1 += K_ms;
 	kmp_times1.push_back(K_ms);
 }
 void Times_two(int64_t K_ms)
 {
+	//with threads
 	kmp_maxtimes2 += K_ms;
 	kmp_times2.push_back(K_ms);
 }
 void Times_three(int64_t K_ms)
 {
+	//with threads
 	kmp_maxtimes3 += K_ms;
 	kmp_times3.push_back(K_ms);
 }
@@ -232,19 +232,19 @@ void RunKMP(string text, string pat)
 //set name to be jumbled
 void setJumble(string input)
 {
-	unique_lock<mutex> locker(pat_mutex);
+	unique_lock<mutex> locker(jumble_mutex);
 	jumble_name = input;
-	patready = 1;
-	pat_cond.notify_one();
+	jumbleready = 1;
+	jumble_cond.notify_one();
 }
 
 //jumble name
 void JumbleName()
 {
-	unique_lock<mutex> locker(pat_mutex);
-	while (patready != 1)
+	unique_lock<mutex> locker(jumble_mutex);
+	while (jumbleready != 1)
 	{
-		pat_cond.wait(locker);
+		jumble_cond.wait(locker);
 	}
 	
 	int jumble_length = jumble_name.size();
@@ -300,6 +300,13 @@ int main()
 	//name to jumble
 	string name = "";
 
+	//jumble times
+	//holds total times
+	int64_t jumble_maxtimes = 0;
+
+	//holds all the times
+	vector<int64_t> jumble_times;
+
 	cout << "Program loops 100 times\n";
 	cout << "Searching Alby in file 1\n";
 	cout << "Searching Jeffery in file 2\n";
@@ -329,6 +336,7 @@ int main()
 		//RunKMP(text3, pat3);
 		//end of text 3
 
+		auto Jumble_begin = std::chrono::steady_clock::now();
 		//jumble words
 		int num = rand() % 3 + 1;
 
@@ -352,6 +360,12 @@ int main()
 
 		setValueThread[i] = new thread(setJumble, name);
 		JumblevalueThread[i] = new thread(JumbleName);		
+		//end of jumble
+		auto Jumble_end = std::chrono::steady_clock::now();
+		auto Jumble_ms = std::chrono::duration_cast<std::chrono::milliseconds>(Jumble_end - Jumble_begin).count();//compute difference
+		
+		jumble_maxtimes += Jumble_ms;
+		jumble_times.push_back(Jumble_ms);
 
 		//join threads
 		KMP_thread1[i]->join();
@@ -381,17 +395,22 @@ int main()
 	KMP time 1 = 188ms
 	KMP time 2 = 273ms
 	KMP time 3 = 516ms
+	Jumble time = 5ms
 	total time taken = 53 seconds
 	without threads
 	KMP time 1 = 161ms
 	KMP time 2 = 240ms
 	KMP time 3 = 478ms
+	Jumble time = 1ms
 	total time taken = 88 seconds
 	*/
 
 	//total time taken in seconds
-	auto seconds = ((Total_ms + 500) / 1000);
-	cout << "Total time taken: " << seconds << endl;
+	auto thread_seconds = ((Total_ms + 500) / 1000);
+	cout << "Total time taken: " << thread_seconds << endl;
+
+	//auto nothread_seconds = ((Total_ms + 500) / 1000);
+	//cout << "Total time taken: " << nothread_seconds << endl;
 
 	//compute the average for text 1
 	auto avkmp1_time = kmp_maxtimes1 / numoftimes;
@@ -408,11 +427,26 @@ int main()
 	cout << endl;
 	cout << "Average KMP time 3: " << avkmp3_time << endl;
 
+	//compute the average time to jumble words
+	auto avjumble_time = jumble_maxtimes / numoftimes;
+	cout << endl;
+	cout << "Average Jumble time: " << avjumble_time << endl;
+
 	//write to excel
-	/*ofstream my_file("Coursework.csv");
-	my_file << Words1 << "," << Words2 << "," << Words3 << endl;
-	my_file << avkmp1_time << "," << avkmp2_time << "," << avkmp3_time << endl;
-	my_file.close();*/
+	int run = 0;
+	ofstream AllTimes_file("AllTimes.csv");
+	AllTimes_file << " " << ","<< "Text1" << "," << "Text2" << "," << "Text3" << "," << "Jumble times" << endl;
+
+	while (kmp_times1.size() != 0 && kmp_times2.size() != 0 && kmp_times3.size() != 0)
+	{
+		run++;
+		AllTimes_file << run << "," << kmp_times1.back() << "," << kmp_times2.back() << "," << kmp_times3.back() << "," << jumble_times.back() << endl;
+		kmp_times1.pop_back();
+		kmp_times2.pop_back();
+		kmp_times3.pop_back();
+		jumble_times.pop_back();
+	}
+	AllTimes_file.close();
 
 	system("pause");
 }
