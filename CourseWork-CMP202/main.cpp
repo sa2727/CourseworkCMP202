@@ -9,6 +9,9 @@
 #include "thread"
 #include "string"
 #include <mutex>
+#include "KMP.h"
+
+KMP K;
 
 using std::cout;
 using std::endl;
@@ -202,7 +205,7 @@ void RunKMP(string text, string pat)
 	//Start timing for KMP
 	auto K_begin = std::chrono::steady_clock::now();
 
-	vector<int> KMP_pos = FindString(text, pat);//Call KMP search function
+	vector<int> KMP_pos = K.FindString(text, pat);//Call KMP search function
 
 	int i = 0;//number of times
 	for (auto k : KMP_pos)
@@ -213,21 +216,21 @@ void RunKMP(string text, string pat)
 
 	auto K_end = std::chrono::steady_clock::now();
 	auto K_ms = std::chrono::duration_cast<std::chrono::milliseconds>(K_end - K_begin).count();//compute difference
-	
+
 	if (text.size() == sizeofText1)//file one
 	{
 		Times_one(K_ms);
 		numfile1 = i;
 		totalfile1 += i;
-	} 
+	}
 	else if (text.size() == sizeofText2)//file two
-	{		
+	{
 		Times_two(K_ms);
 		numfile2 = i;
 		totalfile2 += i;
 	}
 	else if (text.size() == sizeofText3)//file three
-	{	
+	{
 		Times_three(K_ms);
 		numfile3 = i;
 		totalfile3 += i;
@@ -252,7 +255,7 @@ void JumbleName()
 	{
 		jumble_cond.wait(locker);
 	}
-	
+
 	int jumble_length = jumble_name.size();
 	for (int i = 0; i < jumble_name.size(); i++)
 	{
@@ -272,26 +275,12 @@ int main()
 	//number of words in each pieces of text
 	int Words1 = 23352;
 	int Words2 = 35028;
-	int Words3 = 70056;	
+	int Words3 = 70056;
 
 	//holds the text in the logfiles
 	string text1;
 	string text2;
 	string text3;
-
-	//load files
-	/*load_file("Logfile1.txt", text1);
-	load_file("Logfile2.txt", text2);
-	load_file("Logfile3.txt", text3);#*/
-
-	thread load_file_thread1(load_file, "Logfile1.txt", std::ref(text1));
-	thread load_file_thread2(load_file, "Logfile2.txt", std::ref(text2));
-	thread load_file_thread3(load_file, "Logfile3.txt", std::ref(text3));
-	
-	//join threads
-	load_file_thread1.join();
-	load_file_thread2.join();
-	load_file_thread3.join();
 
 	//Threads to run KMP function for each logfile
 	thread* KMP_thread1[numoftimes];
@@ -335,15 +324,35 @@ int main()
 		cout << "1: All threads\n";
 		cout << "2: Grouped Threads\n";
 		cin >> playerChoice;
-	}	
+	}
+
+	//Total time it takes to complete program
+	auto Total_begin = std::chrono::steady_clock::now();
+
+	//load files
+	if (playerChoice == 1)
+	{
+		thread load_file_thread1(load_file, "Logfile1.txt", std::ref(text1));
+		thread load_file_thread2(load_file, "Logfile2.txt", std::ref(text2));
+		thread load_file_thread3(load_file, "Logfile3.txt", std::ref(text3));
+
+		//join threads
+		load_file_thread1.join();
+		load_file_thread2.join();
+		load_file_thread3.join();
+	}
+	else
+	{
+		load_file("Logfile1.txt", text1);
+		load_file("Logfile2.txt", text2);
+		load_file("Logfile3.txt", text3);
+	}
 
 	cout << "Searching Alby in file 1\n";
 	cout << "Searching Jeffery in file 2\n";
 	cout << "Searching Alexandre in file 3\n";
 	cout << "Jumbling words\n";
-	cout << "Running...\n";	
-
-	auto Total_begin = std::chrono::steady_clock::now();
+	cout << "Running...\n";
 
 	for (int i = 0; i < numoftimes; i++)
 	{
@@ -410,7 +419,7 @@ int main()
 		{
 			//Grouped threads
 
-			RunKMP(text1, pat1);
+			KMP_thread1[i] = new thread(RunKMP, text1, pat1);
 			RunKMP(text2, pat2);
 			RunKMP(text3, pat3);
 
@@ -437,7 +446,7 @@ int main()
 			}
 
 			setJumble(name);
-			JumbleName();	
+			JumbleName();
 
 			auto Jumble_end = std::chrono::steady_clock::now();
 			float Jumble_ms = std::chrono::duration_cast<std::chrono::nanoseconds>(Jumble_end - Jumble_begin).count();//compute difference
@@ -445,6 +454,10 @@ int main()
 			Jumble_ms = Jumble_ms / 1000000;//change to milliseconds
 			jumble_maxtimes += Jumble_ms;
 			jumble_times.push_back(Jumble_ms);
+
+			//join thread
+			KMP_thread1[i]->join();
+			delete KMP_thread1[i];
 		}
 
 		auto OneRun_end = std::chrono::steady_clock::now();
@@ -471,7 +484,7 @@ int main()
 
 	//total time taken in seconds
 	auto seconds = Total_ms / 1000;
-	cout << "Total time taken: " << seconds <<  " seconds" << endl;
+	cout << "Total time taken: " << seconds << " seconds" << endl;
 
 	//compute the average time for text 1
 	auto avkmp1_time = kmp_maxtimes1 / numoftimes;
@@ -491,7 +504,7 @@ int main()
 	//compute the average time to jumble words
 	auto avjumble_time = jumble_maxtimes / numoftimes;
 	cout << endl;
-	cout << "Average Jumble time: " << avjumble_time <<  " ms" << endl;
+	cout << "Average Jumble time: " << avjumble_time << " ms" << endl;
 
 	//compute the average time for one run
 	auto avOneRun_time = oneRun / numoftimes;
@@ -499,30 +512,54 @@ int main()
 	cout << "Average OneRun time: " << avOneRun_time << " ms" << endl;
 
 	//write to excel
-	/*int run = 0;
-	ofstream AllTimes_file("AllTimes.csv");
-	AllTimes_file << " " << "," <<  "Jumble times" << endl;
+	//average times 1
+	ofstream AllTimes1_file("AllTimes1.csv");
+	while (kmp_times1.size() != 0)
+	{
+		AllTimes1_file << kmp_times1.back() << endl;
+		kmp_times1.pop_back();
+	}
+	AllTimes1_file.close();
 
+	//average times 2
+	ofstream AllTimes2_file("AllTimes2.csv");
+	while (kmp_times2.size() != 0)
+	{
+		AllTimes2_file << kmp_times2.back() << endl;
+		kmp_times2.pop_back();
+	}
+	AllTimes2_file.close();
+
+	//average times 3
+	ofstream AllTimes3_file("AllTimes3.csv");
+	while (kmp_times3.size() != 0)
+	{
+		AllTimes3_file << kmp_times3.back() << endl;
+		kmp_times3.pop_back();
+	}
+	AllTimes3_file.close();
+
+	//jumble average times
+	ofstream jumble_file("jumble.csv");
 	while (jumble_times.size() != 0)
 	{
-		run++;
-		AllTimes_file << run << "," << jumble_times.back() << endl;
+		jumble_file << jumble_times.back() << endl;
 		jumble_times.pop_back();
 	}
-	AllTimes_file.close();*/
+	jumble_file.close();
 
 	//write to excel
-	/*int run2 = 0;
+	int run = 0;
 	ofstream OneRun_file("OneRun.csv");
 	OneRun_file << " " << "," <<  "OneRun times" << endl;
 
 	while (oneRun_times.size() != 0)
 	{
-		run2++;
-		OneRun_file << run2 << "," << oneRun_times.back() << endl;
+		run++;
+		OneRun_file << run << "," << oneRun_times.back() << endl;
 		oneRun_times.pop_back();
 	}
-	OneRun_file.close();*/
+	OneRun_file.close();
 
 	system("pause");
 }
