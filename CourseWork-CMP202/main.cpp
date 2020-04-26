@@ -33,9 +33,6 @@ int sizeofText2 = 262204;
 //size of text 3 = 524322
 int sizeofText3 = 524322;
 
-//mutex to lock kmp function
-mutex kmp_mutex;
-
 //mutex for pattern
 mutex jumble_mutex;
 condition_variable jumble_cond;
@@ -44,10 +41,17 @@ int jumbleready = 0;
 //number of searches in each logfile
 const int numoftimes = 100;
 
-//name to look for
-string pattern = "";
+//number of times pattern found in each logfile
+int numfile1 = 0;
+int numfile2 = 0;
+int numfile3 = 0;
 
-//word to be encrypted
+//total times pattern found
+int totalfile1 = 0;
+int totalfile2 = 0;
+int totalfile3 = 0;
+
+//word to be jumbled
 string jumble_name = "";
 
 //return type of the difference in start and end times is int64_t	
@@ -103,7 +107,7 @@ void load_file(const string& filename, string& str) {
 
 }
 
-//last proper suffix for KMP
+//last proper suffix
 void CalcLps(int m, int* lps, string pat)
 {
 	lps[0] = 0;
@@ -175,22 +179,19 @@ vector<int> FindString(string text, string pat)
 	return output;
 }
 
-//times
+//times to complete search
 void Times_one(int64_t K_ms)
 {
-	//with threads
 	kmp_maxtimes1 += K_ms;
 	kmp_times1.push_back(K_ms);
 }
 void Times_two(int64_t K_ms)
 {
-	//with threads
 	kmp_maxtimes2 += K_ms;
 	kmp_times2.push_back(K_ms);
 }
 void Times_three(int64_t K_ms)
 {
-	//with threads
 	kmp_maxtimes3 += K_ms;
 	kmp_times3.push_back(K_ms);
 }
@@ -216,24 +217,29 @@ void RunKMP(string text, string pat)
 	if (text.size() == sizeofText1)//file one
 	{
 		Times_one(K_ms);
+		numfile1 = i;
+		totalfile1 += i;
 	} 
 	else if (text.size() == sizeofText2)//file two
 	{		
 		Times_two(K_ms);
+		numfile2 = i;
+		totalfile2 += i;
 	}
 	else if (text.size() == sizeofText3)//file three
 	{	
 		Times_three(K_ms);
+		numfile3 = i;
+		totalfile3 += i;
 	}
-	//cout << "KMP time: "<< K_ms << endl;
 	//end timing of KMP 
 }
 
 //set name to be jumbled
-void setJumble(string input)
+void setJumble(string name)
 {
 	unique_lock<mutex> locker(jumble_mutex);
-	jumble_name = input;
+	jumble_name = name;
 	jumbleready = 1;
 	jumble_cond.notify_one();
 }
@@ -256,8 +262,7 @@ void JumbleName()
 		jumble_name[random_pos1] = jumble_name[random_pos2];
 		jumble_name[random_pos2] = temp;
 	}
-
-	//cout << "\nEncrypted string: " << jumble_name << endl;
+	jumbleready = 0;
 }
 
 int main()
@@ -275,13 +280,13 @@ int main()
 	string text3;
 
 	//load files
+	/*load_file("Logfile1.txt", text1);
+	load_file("Logfile2.txt", text2);
+	load_file("Logfile3.txt", text3);#*/
+
 	thread load_file_thread1(load_file, "Logfile1.txt", std::ref(text1));
 	thread load_file_thread2(load_file, "Logfile2.txt", std::ref(text2));
 	thread load_file_thread3(load_file, "Logfile3.txt", std::ref(text3));
-	
-	//load_file("Logfile1.txt", text1);
-	//load_file("Logfile2.txt", text2);
-	//load_file("Logfile3.txt", text3);
 	
 	//join threads
 	load_file_thread1.join();
@@ -293,6 +298,7 @@ int main()
 	thread* KMP_thread2[numoftimes];
 	thread* KMP_thread3[numoftimes];
 
+	//name to look for
 	string pat1 = "Alby";
 	string pat2 = "Jeffery";
 	string pat3 = "Alexandre";
@@ -302,151 +308,221 @@ int main()
 
 	//jumble times
 	//holds total times
-	int64_t jumble_maxtimes = 0;
+	float jumble_maxtimes = 0;
 
 	//holds all the times
-	vector<int64_t> jumble_times;
+	vector<float> jumble_times;
 
-	cout << "Program loops 100 times\n";
+	//how many times each word got jumbled
+	int Ajumble = 0;
+	int Jjumble = 0;
+	int Aljumble = 0;
+
+	//jumble threads
+	thread* setValueThread[numoftimes];
+	thread* JumblevalueThread[numoftimes];
+
+	//Times one loop
+	int64_t oneRun = 0;
+	vector<int64_t> oneRun_times;
+
+	int playerChoice = 3;
+
+	//How many threads to run
+	while (playerChoice > 2)
+	{
+		cout << "Run Program with: \n";
+		cout << "1: All threads\n";
+		cout << "2: Grouped Threads\n";
+		cin >> playerChoice;
+	}	
+
 	cout << "Searching Alby in file 1\n";
 	cout << "Searching Jeffery in file 2\n";
 	cout << "Searching Alexandre in file 3\n";
 	cout << "Jumbling words\n";
-	cout << "Running...\n";
-	
-	thread* setValueThread[numoftimes];
-	thread* JumblevalueThread[numoftimes];
+	cout << "Running...\n";	
 
 	auto Total_begin = std::chrono::steady_clock::now();
 
 	for (int i = 0; i < numoftimes; i++)
-	{		
-		//Run text 1		
-		KMP_thread1[i] = new thread(RunKMP, text1, pat1);
-		//RunKMP(text1, pat1);
-		//end of text 1
+	{
+		auto OneRun_begin = std::chrono::steady_clock::now();
 
-		//Run text 2
-		KMP_thread2[i] = new thread(RunKMP, text2, pat2);
-		//RunKMP(text2, pat2);
-		//end of text 2
-
-		//Run text 3
-		KMP_thread3[i] = new thread(RunKMP, text3, pat3);		
-		//RunKMP(text3, pat3);
-		//end of text 3
-
-		auto Jumble_begin = std::chrono::steady_clock::now();
-		//jumble words
-		int num = rand() % 3 + 1;
-
-		switch (num)
+		if (playerChoice == 1)
 		{
-		case 1:
-			name = "Alby";
-			break;
-		case 2:
-			name = "Jeffery";
-			break;
-		case 3:
-			name = "Alexandre";
-			break;
-		default:
-			break;
+			//All threads		
+			KMP_thread1[i] = new thread(RunKMP, text1, pat1);
+			KMP_thread2[i] = new thread(RunKMP, text2, pat2);
+			KMP_thread3[i] = new thread(RunKMP, text3, pat3);
+
+			//jumble words
+			auto Jumble_begin = std::chrono::steady_clock::now();
+
+			int num = rand() % 3 + 1;
+
+			switch (num)
+			{
+			case 1:
+				name = "Alby";
+				Ajumble++;
+				break;
+			case 2:
+				name = "Jeffery";
+				Jjumble++;
+				break;
+			case 3:
+				name = "Alexandre";
+				Aljumble++;
+				break;
+			default:
+				break;
+			}
+
+			setValueThread[i] = new thread(setJumble, name);
+			JumblevalueThread[i] = new thread(JumbleName);
+			//end of jumble
+
+			auto Jumble_end = std::chrono::steady_clock::now();
+			float Jumble_ms = std::chrono::duration_cast<std::chrono::nanoseconds>(Jumble_end - Jumble_begin).count();//compute difference
+
+			Jumble_ms = Jumble_ms / 1000000;//change to milliseconds
+			jumble_maxtimes += Jumble_ms;
+			jumble_times.push_back(Jumble_ms);
+
+			//join threads
+			KMP_thread1[i]->join();
+			delete KMP_thread1[i];
+
+			KMP_thread2[i]->join();
+			delete KMP_thread2[i];
+
+			KMP_thread3[i]->join();
+			delete KMP_thread3[i];
+
+			setValueThread[i]->join();
+			delete setValueThread[i];
+
+			JumblevalueThread[i]->join();
+			delete JumblevalueThread[i];
 		}
-		
-		//setJumble(name);
-		//JumbleName();
+		else
+		{
+			//Grouped threads
 
-		setValueThread[i] = new thread(setJumble, name);
-		JumblevalueThread[i] = new thread(JumbleName);		
-		//end of jumble
-		auto Jumble_end = std::chrono::steady_clock::now();
-		auto Jumble_ms = std::chrono::duration_cast<std::chrono::milliseconds>(Jumble_end - Jumble_begin).count();//compute difference
-		
-		jumble_maxtimes += Jumble_ms;
-		jumble_times.push_back(Jumble_ms);
+			RunKMP(text1, pat1);
+			RunKMP(text2, pat2);
+			RunKMP(text3, pat3);
 
-		//join threads
-		KMP_thread1[i]->join();
-		delete KMP_thread1[i];
+			auto Jumble_begin = std::chrono::steady_clock::now();
+			//jumble words
+			int num = rand() % 3 + 1;
 
-		KMP_thread2[i]->join();
-		delete KMP_thread2[i];
+			switch (num)
+			{
+			case 1:
+				name = "Alby";
+				Ajumble++;
+				break;
+			case 2:
+				name = "Jeffery";
+				Jjumble++;
+				break;
+			case 3:
+				name = "Alexandre";
+				Aljumble++;
+				break;
+			default:
+				break;
+			}
 
-		KMP_thread3[i]->join();
-		delete KMP_thread3[i];
+			setJumble(name);
+			JumbleName();	
 
-		setValueThread[i]->join();
-		delete setValueThread[i];
+			auto Jumble_end = std::chrono::steady_clock::now();
+			float Jumble_ms = std::chrono::duration_cast<std::chrono::nanoseconds>(Jumble_end - Jumble_begin).count();//compute difference
 
-		JumblevalueThread[i]->join();
-		delete JumblevalueThread[i];
+			Jumble_ms = Jumble_ms / 1000000;//change to milliseconds
+			jumble_maxtimes += Jumble_ms;
+			jumble_times.push_back(Jumble_ms);
+		}
+
+		auto OneRun_end = std::chrono::steady_clock::now();
+		auto OneRun_ms = std::chrono::duration_cast<std::chrono::milliseconds>(OneRun_end - OneRun_begin).count();//compute difference
+		oneRun += OneRun_ms;
+		oneRun_times.push_back(OneRun_ms);
 	}
 
 	auto Total_end = std::chrono::steady_clock::now();
 	auto Total_ms = std::chrono::duration_cast<std::chrono::milliseconds>(Total_end - Total_begin).count();//compute difference
 
-	cout << "Search Complete\n";	
-
-	//average time taken
-	/*
-	with threads
-	KMP time 1 = 188ms
-	KMP time 2 = 273ms
-	KMP time 3 = 516ms
-	Jumble time = 5ms
-	total time taken = 53 seconds
-	without threads
-	KMP time 1 = 161ms
-	KMP time 2 = 240ms
-	KMP time 3 = 478ms
-	Jumble time = 1ms
-	total time taken = 88 seconds
-	*/
+	cout << "Search Complete\n\n";
+	cout << "Alby found " << numfile1 << " times in file one\n";
+	cout << "Jeffery found " << numfile2 << " times in file two\n";
+	cout << "Alexandre found " << numfile3 << " times in file three\n";
+	cout << "Total number found in file 1: " << totalfile1 << " times\n";
+	cout << "Total number found in file 2: " << totalfile2 << " times\n";
+	cout << "Total number found in file 3: " << totalfile3 << " times\n";
+	cout << endl;
+	cout << "Alby jumbled " << Ajumble << " times\n";
+	cout << "Jeffery jumbled " << Jjumble << " times\n";
+	cout << "Alexandre jumbled " << Aljumble << " times\n";
+	cout << endl;
 
 	//total time taken in seconds
-	auto thread_seconds = ((Total_ms + 500) / 1000);
-	cout << "Total time taken: " << thread_seconds << endl;
+	auto seconds = Total_ms / 1000;
+	cout << "Total time taken: " << seconds <<  " seconds" << endl;
 
-	//auto nothread_seconds = ((Total_ms + 500) / 1000);
-	//cout << "Total time taken: " << nothread_seconds << endl;
-
-	//compute the average for text 1
+	//compute the average time for text 1
 	auto avkmp1_time = kmp_maxtimes1 / numoftimes;
 	cout << endl;
-	cout << "Average KMP time 1: " << avkmp1_time << endl;
+	cout << "Average KMP time 1: " << avkmp1_time << " ms" << endl;
 
-	//compute the average for text 2
+	//compute the average time for text 2
 	auto avkmp2_time = kmp_maxtimes2 / numoftimes;
 	cout << endl;
-	cout << "Average KMP time 2: " << avkmp2_time << endl;
+	cout << "Average KMP time 2: " << avkmp2_time << " ms" << endl;
 
-	//compute the average for text 3
+	//compute the average time for text 3
 	auto avkmp3_time = kmp_maxtimes3 / numoftimes;
 	cout << endl;
-	cout << "Average KMP time 3: " << avkmp3_time << endl;
+	cout << "Average KMP time 3: " << avkmp3_time << " ms" << endl;
 
 	//compute the average time to jumble words
 	auto avjumble_time = jumble_maxtimes / numoftimes;
 	cout << endl;
-	cout << "Average Jumble time: " << avjumble_time << endl;
+	cout << "Average Jumble time: " << avjumble_time <<  " ms" << endl;
+
+	//compute the average time for one run
+	auto avOneRun_time = oneRun / numoftimes;
+	cout << endl;
+	cout << "Average OneRun time: " << avOneRun_time << " ms" << endl;
 
 	//write to excel
-	int run = 0;
+	/*int run = 0;
 	ofstream AllTimes_file("AllTimes.csv");
-	AllTimes_file << " " << ","<< "Text1" << "," << "Text2" << "," << "Text3" << "," << "Jumble times" << endl;
+	AllTimes_file << " " << "," <<  "Jumble times" << endl;
 
-	while (kmp_times1.size() != 0 && kmp_times2.size() != 0 && kmp_times3.size() != 0)
+	while (jumble_times.size() != 0)
 	{
 		run++;
-		AllTimes_file << run << "," << kmp_times1.back() << "," << kmp_times2.back() << "," << kmp_times3.back() << "," << jumble_times.back() << endl;
-		kmp_times1.pop_back();
-		kmp_times2.pop_back();
-		kmp_times3.pop_back();
+		AllTimes_file << run << "," << jumble_times.back() << endl;
 		jumble_times.pop_back();
 	}
-	AllTimes_file.close();
+	AllTimes_file.close();*/
+
+	//write to excel
+	/*int run2 = 0;
+	ofstream OneRun_file("OneRun.csv");
+	OneRun_file << " " << "," <<  "OneRun times" << endl;
+
+	while (oneRun_times.size() != 0)
+	{
+		run2++;
+		OneRun_file << run2 << "," << oneRun_times.back() << endl;
+		oneRun_times.pop_back();
+	}
+	OneRun_file.close();*/
 
 	system("pause");
 }
